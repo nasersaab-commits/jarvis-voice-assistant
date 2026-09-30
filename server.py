@@ -311,6 +311,11 @@ async def websocket_endpoint(ws: WebSocket):
 app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__), "frontend")), name="static")
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok", "time": time.time()}
+
+
 @app.get("/")
 async def serve_index():
     return FileResponse(os.path.join(os.path.dirname(__file__), "frontend", "index.html"))
