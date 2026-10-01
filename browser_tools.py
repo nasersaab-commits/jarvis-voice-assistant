@@ -6,12 +6,15 @@ Web search via DuckDuckGo Lite, page visits via Playwright, URL opening.
 import re
 import webbrowser
 import subprocess
-from urllib.parse import unquote, parse_qs, urlparse
+from urllib.parse import unquote, parse_qs, urlparse, quote_plus
 import httpx
 from playwright.async_api import async_playwright
 
 _browser = None
 _context = None
+# The page from the last search/news request stays open so the user can see it,
+# and is closed when the next one opens so tabs don't pile up.
+_visible_page = None
 
 
 def _bring_chromium_to_front():
@@ -41,13 +44,26 @@ async def _get_browser():
     return _context
 
 
-async def search_and_read(query: str) -> dict:
-    """Search DuckDuckGo in visible browser, click first result, read the page."""
+async def _new_visible_page():
+    """Open a new page and close the one left open by the previous request."""
+    global _visible_page
     ctx = await _get_browser()
     page = await ctx.new_page()
+    old, _visible_page = _visible_page, page
+    if old is not None:
+        try:
+            await old.close()
+        except Exception:
+            pass
+    return page
+
+
+async def search_and_read(query: str) -> dict:
+    """Search DuckDuckGo in visible browser, click first result, read the page."""
+    page = await _new_visible_page()
     try:
         # DuckDuckGo search (no cookie banner, no reCAPTCHA)
-        search_url = f"https://duckduckgo.com/?q={query}"
+        search_url = f"https://duckduckgo.com/?q={quote_plus(query)}"
         await page.goto(search_url, timeout=15000)
         _bring_chromium_to_front()
         await page.wait_for_timeout(2000)
@@ -78,8 +94,6 @@ async def search_and_read(query: str) -> dict:
             return {"title": "Keine Ergebnisse", "url": search_url, "content": "Keine Ergebnisse gefunden."}
     except Exception as e:
         return {"error": str(e), "url": query}
-    finally:
-        pass
 
 
 async def visit(url: str, max_chars: int = 5000) -> dict:
@@ -110,8 +124,7 @@ async def visit(url: str, max_chars: int = 5000) -> dict:
 
 async def fetch_news() -> str:
     """Fetch current world news from worldmonitor.app in visible browser."""
-    ctx = await _get_browser()
-    page = await ctx.new_page()
+    page = await _new_visible_page()
     try:
         await page.goto("https://www.worldmonitor.app/", timeout=20000)
         _bring_chromium_to_front()
@@ -122,8 +135,6 @@ async def fetch_news() -> str:
         return f"World Monitor Nachrichten:\n{content}"
     except Exception as e:
         return f"News konnten nicht geladen werden: {e}"
-    finally:
-        pass  # Keep page open so user can see it
 
 
 async def open_url(url: str):
@@ -135,8 +146,9 @@ async def open_url(url: str):
 
 
 async def close():
-    global _browser, _context
+    global _browser, _context, _visible_page
     if _browser:
         await _browser.close()
         _browser = None
         _context = None
+        _visible_page = None
