@@ -29,6 +29,9 @@ USER_NAME = config.get("user_name", "Julian")
 USER_ADDRESS = config.get("user_address", "Sir")
 CITY = config.get("city", "Hamburg")
 TASKS_FILE = config.get("obsidian_inbox_path", "")
+# Only reachable from this machine by default. Set "host": "0.0.0.0" in config.json
+# to allow other devices on the network (the WebSocket has no authentication).
+HOST = config.get("host", "127.0.0.1")
 
 ai = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 http = httpx.AsyncClient(timeout=30)
@@ -322,4 +325,4 @@ if __name__ == "__main__":
     print("  J.A.R.V.I.S. V2 Server", flush=True)
     print(f"  http://localhost:8340", flush=True)
     print("=" * 50, flush=True)
-    uvicorn.run(app, host="0.0.0.0", port=8340)
+    uvicorn.run(app, host=HOST, port=8340)
