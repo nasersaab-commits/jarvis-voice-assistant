@@ -220,10 +220,19 @@ Find a voice on [elevenlabs.io](https://elevenlabs.io), copy the Voice ID, and s
 ```
 
 ### Adjust clap sensitivity
-In `scripts/clap-trigger.py`:
-```python
-THRESHOLD = 0.15  # Lower = more sensitive
-MAX_GAP = 1.2     # Seconds between claps
+In `config.json` (lower = more sensitive):
+```json
+{
+  "clap_threshold": 0.15
+}
+```
+The time allowed between claps is `MAX_GAP` in `scripts/clap-trigger.py`.
+
+### Change the Claude model
+```json
+{
+  "model": "claude-haiku-4-5-20251001"
+}
 ```
 
 ---
@@ -234,7 +243,7 @@ MAX_GAP = 1.2     # Seconds between claps
 |---------|----------|
 | Jarvis doesn't speak | Check if server is running. Kill old process: `taskkill /f /im python.exe` then restart |
 | "Connection lost" in browser | Old server still running on port 8340. Kill it and restart |
-| Clap not detected | Lower `THRESHOLD` in `clap-trigger.py` (try 0.10) |
+| Clap not detected | Lower `clap_threshold` in `config.json` (try 0.10) |
 | Browser search fails | Run `playwright install chromium` |
 | No audio in Chrome | Click anywhere on the page first (Chrome autoplay policy) |
 | Jarvis says "Sir planen" instead of "Sie planen" | Update the system prompt grammar rules in `server.py` |

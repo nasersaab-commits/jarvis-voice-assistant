@@ -16,13 +16,13 @@ def capture_screen() -> bytes:
     return buf.getvalue()
 
 
-async def describe_screen(anthropic_client) -> str:
+async def describe_screen(anthropic_client, model: str = "claude-haiku-4-5-20251001") -> str:
     """Capture screen and describe it using Claude Vision."""
     png_bytes = capture_screen()
     b64 = base64.b64encode(png_bytes).decode("utf-8")
 
     response = await anthropic_client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=model,
         max_tokens=300,
         messages=[{
             "role": "user",

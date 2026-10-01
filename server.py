@@ -29,6 +29,7 @@ USER_NAME = config.get("user_name", "Julian")
 USER_ADDRESS = config.get("user_address", "Sir")
 CITY = config.get("city", "Hamburg")
 TASKS_FILE = config.get("obsidian_inbox_path", "")
+MODEL = config.get("model", "claude-haiku-4-5-20251001")
 
 ai = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 http = httpx.AsyncClient(timeout=30)
@@ -107,6 +108,7 @@ Du hast die volle Kontrolle ueber den Browser von Julian. Du kannst im Internet 
 AKTIONEN - Schreibe die passende Aktion ans ENDE deiner Antwort. Der Text VOR der Aktion wird vorgelesen, die Aktion selbst wird still ausgefuehrt.
 [ACTION:SEARCH] suchbegriff - Internet durchsuchen und Ergebnisse zusammenfassen
 [ACTION:OPEN] url - URL im Browser oeffnen
+[ACTION:BROWSE] url - Eine bestimmte Webseite lesen und zusammenfassen
 [ACTION:SCREEN] - Bildschirm ansehen und beschreiben. WICHTIG: Bei SCREEN schreibe NUR die Aktion, KEINEN Text davor. Also NUR "[ACTION:SCREEN]" und sonst nichts.
 [ACTION:NEWS] - Aktuelle Weltnachrichten abrufen. Nutze diese Aktion wenn nach News, Nachrichten, was in der Welt passiert, aktuelle Lage oder Weltgeschehen gefragt wird. Schreibe einen kurzen Satz davor wie "Ich schaue nach den aktuellen Nachrichten."
 
@@ -197,7 +199,7 @@ async def execute_action(action: dict) -> str:
         return f"Geoeffnet: {p}"
 
     elif t == "SCREEN":
-        return await screen_capture.describe_screen(ai)
+        return await screen_capture.describe_screen(ai, MODEL)
 
     elif t == "NEWS":
         result = await browser_tools.fetch_news()
@@ -220,7 +222,7 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
 
     # LLM call
     response = await ai.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=MODEL,
         max_tokens=400,
         system=get_system_prompt(),
         messages=history,
@@ -269,7 +271,7 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
         # SEARCH, BROWSE, SCREEN — summarize results
         if action_result and "fehlgeschlagen" not in action_result:
             summary_resp = await ai.messages.create(
-                model="claude-haiku-4-5-20251001",
+                model=MODEL,
                 max_tokens=250,
                 system=f"Du bist Jarvis. Fasse die folgenden Informationen KURZ auf Deutsch zusammen, maximal 3 Saetze, im Jarvis-Stil. Sprich den Nutzer als {USER_ADDRESS} an. KEINE Tags in eckigen Klammern. KEINE ACTION-Tags.",
                 messages=[{"role": "user", "content": f"Fasse zusammen:\n\n{action_result}"}],
