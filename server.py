@@ -54,7 +54,8 @@ def get_weather_sync():
             "humidity": c["humidity"],
             "wind_kmh": c["windspeedKmph"],
         }
-    except:
+    except Exception as e:
+        print(f"[jarvis] Wetter konnte nicht geladen werden: {e}", flush=True)
         return None
 
 
@@ -67,7 +68,8 @@ def get_tasks_sync():
         with open(tasks_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
         return [l.strip().replace("- [ ]", "").strip() for l in lines if l.strip().startswith("- [ ]")]
-    except:
+    except Exception as e:
+        print(f"[jarvis] Tasks konnten nicht geladen werden: {e}", flush=True)
         return []
 
 
@@ -122,6 +124,21 @@ WENN Julian "Jarvis activate" sagt:
 
 def get_system_prompt():
     return build_system_prompt().replace("{time}", time.strftime("%H:%M"))
+
+
+def trim_history(messages: list, limit: int = 16) -> list:
+    """Return the last `limit` messages in a shape the Messages API accepts:
+    consecutive turns of the same role merged, starting with a user turn."""
+    merged = []
+    for m in messages:
+        if merged and merged[-1]["role"] == m["role"]:
+            merged[-1] = {"role": m["role"], "content": merged[-1]["content"] + "\n\n" + m["content"]}
+        else:
+            merged.append(dict(m))
+    merged = merged[-limit:]
+    while merged and merged[0]["role"] != "user":
+        merged.pop(0)
+    return merged
 
 
 def extract_action(text: str):
@@ -212,11 +229,12 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
         conversations[session_id] = []
 
     # Refresh weather + tasks on activate
+    # (in a thread, so the network/file reads don't block other clients)
     if "activate" in user_text.lower():
-        refresh_data()
+        await asyncio.to_thread(refresh_data)
 
     conversations[session_id].append({"role": "user", "content": user_text})
-    history = conversations[session_id][-16:]
+    history = trim_history(conversations[session_id])
 
     # LLM call
     response = await ai.messages.create(
