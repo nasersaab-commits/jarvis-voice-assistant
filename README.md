@@ -219,6 +219,14 @@ Find a voice on [elevenlabs.io](https://elevenlabs.io), copy the Voice ID, and s
 }
 ```
 
+### Access Jarvis from another device
+By default the server only listens on `127.0.0.1`, so only this computer can reach it. To open it to your local network (anyone on it can then control Jarvis, since there is no login):
+```json
+{
+  "host": "0.0.0.0"
+}
+```
+
 ### Adjust clap sensitivity
 In `config.json` (lower = more sensitive):
 ```json

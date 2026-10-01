@@ -30,6 +30,9 @@ USER_ADDRESS = config.get("user_address", "Sir")
 CITY = config.get("city", "Hamburg")
 TASKS_FILE = config.get("obsidian_inbox_path", "")
 MODEL = config.get("model", "claude-haiku-4-5-20251001")
+# Only reachable from this machine by default. Set "host": "0.0.0.0" in config.json
+# to allow other devices on the network (the WebSocket has no authentication).
+HOST = config.get("host", "127.0.0.1")
 
 ai = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
 http = httpx.AsyncClient(timeout=30)
@@ -55,7 +58,8 @@ def get_weather_sync():
             "humidity": c["humidity"],
             "wind_kmh": c["windspeedKmph"],
         }
-    except:
+    except Exception as e:
+        print(f"[jarvis] Wetter konnte nicht geladen werden: {e}", flush=True)
         return None
 
 
@@ -68,7 +72,8 @@ def get_tasks_sync():
         with open(tasks_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
         return [l.strip().replace("- [ ]", "").strip() for l in lines if l.strip().startswith("- [ ]")]
-    except:
+    except Exception as e:
+        print(f"[jarvis] Tasks konnten nicht geladen werden: {e}", flush=True)
         return []
 
 
@@ -124,6 +129,21 @@ WENN Julian "Jarvis activate" sagt:
 
 def get_system_prompt():
     return build_system_prompt().replace("{time}", time.strftime("%H:%M"))
+
+
+def trim_history(messages: list, limit: int = 16) -> list:
+    """Return the last `limit` messages in a shape the Messages API accepts:
+    consecutive turns of the same role merged, starting with a user turn."""
+    merged = []
+    for m in messages:
+        if merged and merged[-1]["role"] == m["role"]:
+            merged[-1] = {"role": m["role"], "content": merged[-1]["content"] + "\n\n" + m["content"]}
+        else:
+            merged.append(dict(m))
+    merged = merged[-limit:]
+    while merged and merged[0]["role"] != "user":
+        merged.pop(0)
+    return merged
 
 
 def extract_action(text: str):
@@ -214,11 +234,12 @@ async def process_message(session_id: str, user_text: str, ws: WebSocket):
         conversations[session_id] = []
 
     # Refresh weather + tasks on activate
+    # (in a thread, so the network/file reads don't block other clients)
     if "activate" in user_text.lower():
-        refresh_data()
+        await asyncio.to_thread(refresh_data)
 
     conversations[session_id].append({"role": "user", "content": user_text})
-    history = conversations[session_id][-16:]
+    history = trim_history(conversations[session_id])
 
     # LLM call
     response = await ai.messages.create(
@@ -324,4 +345,4 @@ if __name__ == "__main__":
     print("  J.A.R.V.I.S. V2 Server", flush=True)
     print(f"  http://localhost:8340", flush=True)
     print("=" * 50, flush=True)
-    uvicorn.run(app, host="0.0.0.0", port=8340)
+    uvicorn.run(app, host=HOST, port=8340)
